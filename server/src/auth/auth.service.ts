@@ -58,21 +58,39 @@ export class AuthService {
 
   async createUser(signUpDTO: SignUpDTO): Promise<any> {
     const hashedPassword = await bcrypt.hash(signUpDTO.password, 10);
-
     try {
-      const user = await this.sequelize.transaction(async (transaction) => {
-        const authUser = await this.createAuth(
-          signUpDTO.email,
-          hashedPassword,
-          transaction,
+      const result = await this.sequelize.transaction(async (transaction) => {
+        const authUser = await this.authRepository.create(
+          {
+            email: signUpDTO.email,
+            password: hashedPassword,
+          },
+          { transaction },
         );
-        return this.userService.create({
-          ...signUpDTO,
-          auth_user_id: authUser.id,
+
+        if (!authUser?.id) {
+          throw new Error('Failed to create auth user record');
+        }
+
+        this.logger.log(`Created auth_user with id: ${authUser.id}`);
+
+        const userData = {
+          first_name: signUpDTO.first_name,
+          last_name: signUpDTO.last_name,
+          email: signUpDTO.email,
+          phone: signUpDTO.phone,
           password: hashedPassword,
-        });
+          auth_user_id: authUser.id,
+        };
+
+        this.logger.log(`Creating user with data: ${JSON.stringify(userData)}`);
+
+        const user = await this.userService.create(userData, transaction);
+
+        return user;
       });
-      return user;
+
+      return result;
     } catch (error: any) {
       this.logger.error(`Error creating user: ${error.message}`, error.stack);
       throw new HttpException(
@@ -128,6 +146,8 @@ export class AuthService {
         throw new UnauthorizedException('Wrong credentials provided.');
 
       delete user.auth_user;
+      delete user.password;
+      delete user.auth_user_id;
       return user;
     } catch (error: any) {
       this.logger.error(

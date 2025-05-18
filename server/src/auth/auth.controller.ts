@@ -26,8 +26,7 @@ import passport from 'passport';
 import { CookieAuthenticationGuard } from './guards/cookie-auth.guard';
 import { SESSION_COOKIE_NAME } from 'src/common/constants/session';
 import { UserService } from 'src/user/user.service';
-import { CreateUserDTO } from 'src/user/dto/create-user.dto';
-import { SignInDTO } from './dto/login.dto';
+import { SignUpDTO, SignInDTO } from './dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -42,10 +41,11 @@ export class AuthController {
   @Post('sign-up')
   async register(
     @Req() req: Request,
-    @Body() signUpDTO: CreateUserDTO,
+    @Body() signUpDTO: SignUpDTO,
     @Res() res: Response,
   ) {
     try {
+      console.log('signUpDTO', signUpDTO);
       const user = await this.authService.createUser(signUpDTO);
 
       req.body.email = signUpDTO.email;

@@ -1,18 +1,17 @@
-export interface SignUpData {
+export interface ISignUpData {
   first_name: string;
   last_name: string;
   email: string;
-  nickname: string;
   phone: string;
   password: string;
 }
 
-export interface SignInData {
+export interface ISignInData {
   email: string;
   password: string;
 }
 
-export interface UserResponse {
+export interface IUserResponse {
   id: string;
   first_name: string;
   last_name: string;

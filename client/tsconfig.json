@@ -14,8 +14,8 @@
       "pages/*": ["src/pages/*"],
       "widgets/*": ["src/widgets/*"],
       "app/*": ["src/app/*"],
-      "feature/*": ["src/feature/*"],
-      "entity/*": ["src/entity/*"],
+      "features/*": ["src/features/*"],
+      "entities/*": ["src/entities/*"],
       "shared/*": ["src/shared/*"]
     },
     "moduleResolution": "node",

@@ -1,6 +1,12 @@
-import { withProviders } from "./providers";
+import { AuthProvider } from "./providers/auth";
 import { RouterProvider } from "./providers/router";
 
-export const App: React.FC = () => {
-  return withProviders(<RouterProvider />);
+const AppContent: React.FC = () => {
+  return (
+    <AuthProvider>
+      <RouterProvider />
+    </AuthProvider>
+  );
 };
+
+export const App = () => <AppContent />;

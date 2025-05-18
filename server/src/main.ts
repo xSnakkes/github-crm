@@ -12,6 +12,7 @@ import { SESSION_COOKIE_NAME } from './common/constants/session';
 import { randomUUID } from 'crypto';
 import { createClient } from 'redis';
 import RedisStore from 'connect-redis';
+import { corsOptions } from './utils/cors/cors.options';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -28,7 +29,7 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
   }
 
-  app.enableCors();
+  app.enableCors(corsOptions);
   app.use(cookieParser());
   app.setGlobalPrefix('api');
   app.enableVersioning({
@@ -67,7 +68,10 @@ async function bootstrap() {
       proxy: true,
       cookie: {
         secure: configService.get<string>('NODE_ENV') === 'production',
-        sameSite: 'none',
+        sameSite:
+          configService.get<string>('NODE_ENV') === 'production'
+            ? 'strict'
+            : 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
       },
       genid: (req) => {
