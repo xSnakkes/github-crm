@@ -47,48 +47,71 @@ async function bootstrap() {
     }),
   );
 
-  const redisClient = createClient({
-    url: configService.get('REDIS_URL'),
-  });
+  try {
+    const redisUrl = configService.get('REDIS_URL');
+    const logger = new Logger('Redis');
+    logger.log(`Connecting to Redis at ${redisUrl}`);
 
-  await redisClient.connect();
-
-  const redisStore = new RedisStore({
-    client: redisClient,
-    prefix: '',
-  });
-
-  app.use(
-    session({
-      store: redisStore,
-      secret: configService.get<string>('SESSION_SECRET'),
-      resave: false,
-      saveUninitialized: false,
-      name: SESSION_COOKIE_NAME,
-      proxy: true,
-      cookie: {
-        secure: configService.get<string>('NODE_ENV') === 'production',
-        sameSite:
-          configService.get<string>('NODE_ENV') === 'production'
-            ? 'strict'
-            : 'lax',
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    const redisClient = createClient({
+      url: redisUrl,
+      socket: {
+        reconnectStrategy: (retries) => {
+          logger.log(`Redis reconnect attempt: ${retries}`);
+          return Math.min(retries * 100, 3000);
+        },
       },
-      genid: (req) => {
-        const id = randomUUID();
-        const userId = (req.user as any)?.id ?? 'anonymous';
-        return `sid:${userId}:${id}`;
-      },
-    }),
-  );
+    });
 
-  app.set('trust proxy', 1);
+    redisClient.on('error', (err) => {
+      logger.error('Redis Connection Error: ', err);
+    });
 
-  useContainer(app.select(AppModule), { fallbackOnErrors: true });
+    redisClient.on('connect', () => {
+      logger.log('Connected to Redis successfully');
+    });
 
-  await app.listen(PORT, () => {
-    const logger = new Logger();
-    logger.verbose(`Server running, listening on port ${PORT}`);
-  });
+    await redisClient.connect();
+
+    const redisStore = new RedisStore({
+      client: redisClient,
+      prefix: '',
+    });
+
+    app.use(
+      session({
+        store: redisStore,
+        secret: configService.get<string>('SESSION_SECRET'),
+        resave: false,
+        saveUninitialized: false,
+        name: SESSION_COOKIE_NAME,
+        proxy: true,
+        cookie: {
+          secure: configService.get<string>('NODE_ENV') === 'production',
+          sameSite:
+            configService.get<string>('NODE_ENV') === 'production'
+              ? 'strict'
+              : 'lax',
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        },
+        genid: (req) => {
+          const id = randomUUID();
+          const userId = (req.user as any)?.id ?? 'anonymous';
+          return `sid:${userId}:${id}`;
+        },
+      }),
+    );
+
+    app.set('trust proxy', 1);
+
+    useContainer(app.select(AppModule), { fallbackOnErrors: true });
+
+    await app.listen(PORT, () => {
+      logger.verbose(`Server running, listening on port ${PORT}`);
+    });
+  } catch (error) {
+    const logger = new Logger('Bootstrap');
+    logger.error('Application failed to start', error);
+    process.exit(1);
+  }
 }
 bootstrap();

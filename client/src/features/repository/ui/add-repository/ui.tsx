@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, Star, Search, Loader2 } from "lucide-react";
-import { RepositoryFormValues, repositorySchema } from "./lib";
+import { X, Search, Loader2 } from "lucide-react";
+import {
+  renderSuggestions,
+  RepositoryFormValues,
+  repositorySchema,
+} from "./lib";
 import { useRepositoryStore } from "entities/repository";
-import { Button } from "shared/ui/button";
-import { Input } from "shared/ui/input";
-import { Label } from "shared/ui/label";
+import { useDebounce } from "shared/lib/hooks";
 import {
   Dialog,
   DialogContent,
@@ -16,8 +18,10 @@ import {
   DialogClose,
   Alert,
   AlertDescription,
+  Button,
+  Input,
+  Label,
 } from "shared/ui";
-import { useDebounce } from "shared/lib";
 
 interface AddRepositoryDialogProps {
   isOpen: boolean;
@@ -38,9 +42,8 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
     isSearching,
   } = useRepositoryStore();
 
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedRepoPath, setSelectedRepoPath] = useState<string | null>(null);
   const [skipNextSearch, setSkipNextSearch] = useState(false);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -58,7 +61,24 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
   });
 
   const repositoryPath = watch("repositoryPath");
+  // Apply debounce with 300ms delay
   const debouncedRepositoryPath = useDebounce(repositoryPath, 300);
+
+  useEffect(() => {
+    if (repositoryPath) {
+      const matchingSuggestion = searchOptions.find(
+        (option) => option.value === repositoryPath
+      );
+
+      if (matchingSuggestion) {
+        setSelectedRepoPath(repositoryPath);
+      } else {
+        setSelectedRepoPath(null);
+      }
+    } else {
+      setSelectedRepoPath(null);
+    }
+  }, [repositoryPath, searchOptions]);
 
   useEffect(() => {
     if (isOpen) {
@@ -80,44 +100,15 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
 
     if (debouncedRepositoryPath && debouncedRepositoryPath.length >= 3) {
       searchRepositories(debouncedRepositoryPath);
-      if (!showSuggestions) {
-        setShowSuggestions(true);
-      }
-    } else {
-      setShowSuggestions(false);
     }
-  }, [
-    debouncedRepositoryPath,
-    searchRepositories,
-    showSuggestions,
-    skipNextSearch,
-  ]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target as Node) &&
-        inputRef.current &&
-        !inputRef.current.contains(event.target as Node)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
+  }, [debouncedRepositoryPath, searchRepositories, skipNextSearch]);
 
   const handleSelectRepository = (repoPath: string) => {
-    setSkipNextSearch(true);
     setValue("repositoryPath", repoPath, { shouldValidate: true });
     clearErrors("add");
-
+    setSelectedRepoPath(repoPath);
+    setSkipNextSearch(true);
     inputRef.current?.focus();
-    setShowSuggestions(false);
   };
 
   const onSubmit = async (data: RepositoryFormValues) => {
@@ -126,6 +117,7 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
     const success = await addRepository(data.repositoryPath);
     if (success) {
       reset();
+      setSelectedRepoPath(null);
       onClose();
     }
   };
@@ -133,12 +125,11 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
   const handleClose = () => {
     clearErrors("add");
     reset();
-    setShowSuggestions(false);
+    setSelectedRepoPath(null);
     onClose();
   };
 
-  const isWaitingForDebounce =
-    repositoryPath.length >= 3 && repositoryPath !== debouncedRepositoryPath;
+  const limitedSearchOptions = searchOptions.slice(0, 3);
 
   return (
     <Dialog
@@ -170,93 +161,28 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
               <Label htmlFor="repositoryPath">Repository Path</Label>
 
               <div className="relative">
-                <div className="relative">
-                  <Input
-                    id="repositoryPath"
-                    placeholder="facebook/react"
-                    {...register("repositoryPath")}
-                    className={
-                      formErrors.repositoryPath
-                        ? "border-destructive pr-10"
-                        : "pr-10"
-                    }
-                    autoComplete="off"
-                    ref={(e) => {
-                      register("repositoryPath").ref(e);
-                      inputRef.current = e;
-                    }}
-                    onFocus={() => {
-                      if (repositoryPath && repositoryPath.length >= 3) {
-                        setShowSuggestions(true);
-                      }
-                    }}
-                  />
-                  <div className="absolute right-0 top-0 h-full flex items-center pr-2">
-                    {isSearching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-
-                {showSuggestions && searchOptions.length > 0 && (
-                  <div
-                    ref={suggestionsRef}
-                    className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md max-h-60 overflow-auto"
-                  >
-                    <ul className="py-1">
-                      {searchOptions.map((option) => (
-                        <li key={option.value}>
-                          <button
-                            className="px-3 py-2 w-full hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                            onClick={() => handleSelectRepository(option.value)}
-                            type="button"
-                          >
-                            <div className="flex items-center">
-                              {option.avatar && (
-                                <img
-                                  src={option.avatar}
-                                  alt={`${option.label} avatar`}
-                                  className="w-5 h-5 rounded-full mr-2"
-                                />
-                              )}
-                              <span className="font-medium text-left truncate">
-                                {option.value}
-                              </span>
-                              {option.stars !== undefined && (
-                                <span className="ml-auto flex items-center text-xs text-muted-foreground">
-                                  <Star className="w-3 h-3 mr-1" />
-                                  {option.stars.toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                            {option.description && (
-                              <p className="text-xs text-left text-muted-foreground truncate mt-1">
-                                {option.description}
-                              </p>
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {showSuggestions &&
-                  searchOptions.length === 0 &&
-                  !isSearching &&
-                  !isWaitingForDebounce &&
-                  debouncedRepositoryPath.length >= 3 && (
-                    <div
-                      ref={suggestionsRef}
-                      className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-md p-3 text-center"
-                    >
-                      <p className="text-sm text-muted-foreground">
-                        No repositories found
-                      </p>
-                    </div>
+                <Input
+                  id="repositoryPath"
+                  placeholder="facebook/react"
+                  {...register("repositoryPath")}
+                  className={
+                    formErrors.repositoryPath
+                      ? "border-destructive pr-10"
+                      : "pr-10"
+                  }
+                  autoComplete="off"
+                  ref={(e) => {
+                    register("repositoryPath").ref(e);
+                    inputRef.current = e;
+                  }}
+                />
+                <div className="absolute right-0 top-0 h-full flex items-center pr-2">
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4 text-muted-foreground" />
                   )}
+                </div>
               </div>
 
               {formErrors.repositoryPath && (
@@ -264,9 +190,22 @@ export const AddRepositoryDialog: React.FC<AddRepositoryDialogProps> = ({
                   {formErrors.repositoryPath.message}
                 </p>
               )}
+
+              {debouncedRepositoryPath &&
+                debouncedRepositoryPath.length >= 3 && (
+                  <div className="mt-3 space-y-2 max-w-[320px]">
+                    {renderSuggestions({
+                      repositoryPath: debouncedRepositoryPath,
+                      limitedSearchOptions,
+                      isSearching,
+                      selectedRepoPath,
+                      handleSelectRepository,
+                    })}
+                  </div>
+                )}
+
               <p className="text-sm text-muted-foreground">
                 Enter the path to the GitHub repository (e.g., facebook/react)
-                or select from search results
               </p>
             </div>
           </div>

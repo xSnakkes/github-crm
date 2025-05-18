@@ -82,9 +82,15 @@ export const RepositoryTable: React.FC<RepositoryTableProps> = ({
         <TableCell className="text-center">{repo.forks}</TableCell>
         <TableCell className="text-center">{repo.openIssues}</TableCell>
         <TableCell className="hidden md:table-cell">
-          {formatDistance(new Date(repo.createdAt), new Date(), {
-            addSuffix: true,
-          })}
+          {formatDistance(
+            typeof repo.createdAt === "number"
+              ? new Date(repo.createdAt * 1000)
+              : new Date(repo.createdAt),
+            new Date(),
+            {
+              addSuffix: true,
+            }
+          )}
         </TableCell>
         <TableCell className="text-right space-x-2">
           <Button
@@ -123,13 +129,13 @@ export const RepositoryTable: React.FC<RepositoryTableProps> = ({
             <TableHead>Repository</TableHead>
             <TableHead>Owner</TableHead>
             <TableHead className="hidden md:table-cell">URL</TableHead>
-            <TableHead className="text-center">
+            <TableHead className="text-center" title="Number of stars">
               <Star className="inline h-4 w-4" />
             </TableHead>
-            <TableHead className="text-center">
+            <TableHead className="text-center" title="Number of forks">
               <GitFork className="inline h-4 w-4" />
             </TableHead>
-            <TableHead className="text-center">
+            <TableHead className="text-center" title="Number of open issues">
               <CircleAlert className="inline h-4 w-4" />
             </TableHead>
             <TableHead className="hidden md:table-cell">Created</TableHead>
