@@ -66,7 +66,7 @@ cp .env.db.example .env.db
 **3. Start the application**
 
 ```bash
-docker-compose up --build
+docker-compose -f docker-compose.dev up
 ```
 
 **4. Access the application**
